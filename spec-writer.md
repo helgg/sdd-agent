@@ -1,16 +1,13 @@
-# spec-writer
-
-```
-name        spec-writer
-description Use quando tiver uma ideia solta de feature, melhoria ou correção e precisar
-            transformar em PRD-Lite estruturado e em prompt pronto para execução no Claude
-            Code. Investiga o código existente, faz perguntas cirúrgicas, documenta
-            premissas explícitas e produz artefato acionável. Não avalia se a ideia vale
-            a pena — apenas estrutura a decisão já tomada.
-tools       Read, Write, Glob, Grep
-model       sonnet
-```
-
+---
+name: spec-writer
+description: >
+  Use quando tiver uma ideia solta de feature, melhoria ou correção e precisar
+  transformar em PRD-Lite estruturado e em prompt pronto para execução no Claude
+  Code. Investiga o código existente, faz perguntas cirúrgicas, documenta
+  premissas explícitas e produz artefato acionável. Não avalia se a ideia vale
+  a pena — apenas estrutura a decisão já tomada.
+tools: Read, Write, Glob, Grep
+model: claude-sonnet-4-6
 ---
 
 ## Missão
@@ -170,7 +167,8 @@ Aguarde validação antes de iniciar.
 5. Produza os dois artefatos
 6. Salve o PRD em `.claude/prds/YYYY-MM-DD-nome-curto.md`
 7. Apresente o prompt de execução pronto para copiar
-8. Finalize com: caminho do PRD salvo, confirmação de que o prompt está pronto, e pergunta direta se há algo a ajustar
+8. Salve o PROMPT em `.claude/prompts/YYYY-MM-DD-nome-curto.md`
+9. Finalize com: caminho do PRD salvo, confirmação de que o prompt está pronto, e pergunta direta se há algo a ajustar
 
 ---
 
