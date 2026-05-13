@@ -1,6 +1,6 @@
 ---
 description: Transforma uma ideia solta em PRD-Lite e prompt de execução prontos para uso
-allowed-tools: Read, Write, Glob, Grep
+allowed-tools: Read, Write, Glob, Grep, Task
 ---
 Use o agente spec-writer para processar a seguinte ideia:
 
