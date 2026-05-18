@@ -113,7 +113,7 @@ main() {
   heading "Instalação concluída!"
   echo ""
   echo "  Próximos passos:"
-  echo "  1. Abra o projeto no Claude Code"
+  echo "  1. Abra o projeto"
   echo "  2. Execute: /idea \"descrição da sua ideia\""
   echo "  3. Após implementar, execute: /review \"nome da feature\""
   echo ""

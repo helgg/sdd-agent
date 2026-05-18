@@ -116,9 +116,42 @@ Com base na natureza da tarefa, identifique quais domínios devem ser ativados e
 
 ---
 
+## Diagrama Mermaid
+
+Gere um diagrama Mermaid no PRD-Lite **sempre que a feature envolver**:
+- Fluxo de usuário com mais de 2 passos
+- Sequência de chamadas entre sistemas ou componentes
+- Mudança de estado de uma entidade
+- Estrutura de dados com relações entre entidades
+- Arquitetura com mais de um serviço envolvido
+
+**Não gere diagrama para:**
+- Mudanças puramente visuais ou estilísticas
+- Correções de bug isoladas sem impacto em fluxo
+- Features Micro sem interação entre componentes
+
+### Escolha do tipo
+
+| Situação | Tipo Mermaid |
+|---|---|
+| Fluxo de usuário / decisões | `flowchart TD` |
+| Sequência entre sistemas ou APIs | `sequenceDiagram` |
+| Mudança de estado de entidade | `stateDiagram-v2` |
+| Estrutura de banco / entidades | `erDiagram` |
+| Pipeline ou etapas sequenciais | `flowchart LR` |
+
+### Regras de geração
+
+- Máximo 12 nós por diagrama — se precisar de mais, quebre em dois com títulos distintos
+- Labels em português, no mesmo idioma do PRD
+- Nunca invente componentes que não existem no código — use apenas o que foi identificado na investigação
+- Se o diagrama ficar confuso, prefira omitir a incluir ruído
+
+---
+
 ## Formato do PRD-Lite
 
-```markdown
+````markdown
 # PRD-Lite: [Nome curto]
 
 **Status**: Rascunho — aguardando confirmação
@@ -139,6 +172,14 @@ Com base na natureza da tarefa, identifique quais domínios devem ser ativados e
 ## Fora de Escopo
 - [o que explicitamente não será feito agora]
 
+## Diagrama
+[Omita esta seção para features Micro ou sem fluxo relevante]
+
+```mermaid
+[tipo]
+  [nós e relações baseados no código real investigado]
+```
+
 ## Áreas Técnicas Tocadas
 - `caminho/arquivo.ts` — [o que muda e por quê]
 
@@ -151,7 +192,7 @@ Com base na natureza da tarefa, identifique quais domínios devem ser ativados e
 
 ## Observações
 [Qualquer risco, dependência ou decisão relevante antes de executar]
-```
+````
 
 ---
 
@@ -159,7 +200,7 @@ Com base na natureza da tarefa, identifique quais domínios devem ser ativados e
 
 Após o PRD, gere a ordem de execução dos tickets:
 
-```markdown
+````markdown
 ## Plano de Dependências: [Nome curto]
 
 ### Batch 1 — Fundação (sequencial, nesta ordem)
@@ -174,7 +215,7 @@ Após o PRD, gere a ordem de execução dos tickets:
 - **T5**: [nome]
 
 **Nota de execução:** Inicie o Batch 2 apenas após T1 e T2 estarem completos e validados.
-```
+````
 
 Para cada batch, gere um prompt de execução separado.
 
@@ -183,7 +224,7 @@ Para cada batch, gere um prompt de execução separado.
 ## Formato do Prompt de Execução
 
 ```
-## Prompt para Claude Code
+## Prompt para o executor
 
 ---
 
@@ -259,3 +300,5 @@ Aguarde validação antes de iniciar.
 - Produzir artefato de escala completa para ideia micro
 - Antecipar implementações de batches futuros durante execução de batch anterior
 - Encerrar sem executar a verificação pós-implementação
+- Gerar diagrama Mermaid com componentes inventados que não existem no código
+- Incluir diagrama confuso em vez de omitir
