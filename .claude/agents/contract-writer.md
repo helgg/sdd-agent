@@ -160,3 +160,43 @@ O sprint #N é considerado concluído quando:
 - Incluir itens de outros batches no escopo do executor
 - Marcar como AGREED sem apresentar ao usuário primeiro
 - Gerar casos de teste vagos sem input/output verificável
+- Encerrar sem acionar o context-writer após contrato ser confirmado
+
+---
+
+## Integração com context-writer
+
+Ao final do workflow, após o usuário confirmar o contrato, acione o
+`context-writer` passando os seguintes dados:
+
+**Evento:** `contract_agreed`
+
+**Dados a passar:**
+```
+sprint: [número do sprint]
+contract: .claude/context/sprint-N-contract.md
+cost: [estimativa de pontos calculada com base nos arquivos e complexidade do contrato]
+```
+
+O `context-writer` irá:
+- Atualizar `contract = AGREED` no `sprint-N.md` e em `sprints.md`
+- Registrar o evento no histórico do sprint
+- Atualizar `current.md` com o próximo passo
+
+**Estimativa de cost — use a tabela do context-writer:**
+
+| Pontos | Critério |
+|---|---|
+| 1 | Mudança em 1 arquivo, sem nova interface |
+| 2 | Mudança em 2–3 arquivos ou nova função simples |
+| 3 | Novo módulo ou integração simples |
+| 4 | Novo serviço ou refactor de módulo existente |
+| 5 | Mudança arquitetural ou integração complexa |
+
+**Mensagem final ao usuário após atualização:**
+```
+Contrato do Sprint #N: AGREED
+Cost estimado: [N] pontos
+Próximo passo: /sprint start N — libere o executor para começar.
+Monitor: python3 sdd.py
+```

@@ -181,7 +181,7 @@ Se o PRD-Lite contiver diagrama Mermaid:
 Gerado apenas quando há desvios 🔴 ou 🟡:
 
 ```
-## Prompt para o executor — Correção de Aderência
+## Prompt para Claude Code — Correção de Aderência
 
 ---
 
@@ -252,3 +252,42 @@ Aguarde validação antes de iniciar.
 - Ignorar o diagrama Mermaid na verificação quando ele existir no PRD
 - Sugerir mudanças na spec durante a verificação — a spec é a fonte da verdade, não o código
 - Criar o diretório `.claude/verify/` manualmente se não existir — use `mkdir -p` via Bash
+- Encerrar sem acionar o context-writer após emitir veredicto
+
+---
+
+## Integração com context-writer
+
+Ao final do workflow, após emitir o veredicto, acione o `context-writer`
+passando os seguintes dados:
+
+**Evento:** `build_update`
+
+**Dados a passar:**
+```
+sprint: [número do sprint — extraído de --sprint N ou pergunte se não informado]
+status: verified | failed
+desvios_criticos: [número de desvios 🔴 encontrados]
+desvios_importantes: [número de desvios 🟡 encontrados]
+adicoes_nao_autorizadas: [número de itens 🟠]
+relatorio: .claude/verify/YYYY-MM-DD-nome-feature.md
+```
+
+O `context-writer` irá:
+- Atualizar `build` no `sprint-N.md` e em `sprints.md`
+- Registrar desvios no histórico de eventos do sprint
+- Preencher "Histórico de Violações" no contrato se `status = failed`
+- Atualizar `current.md`
+
+**Se o sprint não for informado via flag:**
+Verifique em `.claude/context/sprints.md` qual sprint está com
+`build = done` e `qa = pending` — esse é o sprint atual.
+
+**Mensagem final ao usuário após atualização:**
+```
+Sprint #N atualizado.
+Build: [verified/failed]
+[Se verified]: Próximo passo: /review "feature" --sprint N
+[Se failed]:   Corrija os desvios e execute /verify novamente.
+Monitor: python3 sdd.py
+```

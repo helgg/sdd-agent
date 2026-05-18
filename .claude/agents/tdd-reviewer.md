@@ -28,7 +28,7 @@ Produz dois artefatos:
 ## Modos de Operação
 
 ### Modo padrão: Review Gate (pós-implementação)
-Acionado após o executor implementar uma feature.
+Acionado após o Claude Code implementar uma feature.
 Fluxo: analisa código → avalia cobertura → gera testes ausentes → bloqueia merge até aprovação.
 
 ### Modo alternativo: TDD Clássico (pré-implementação)
@@ -155,7 +155,7 @@ Para cada trecho de código sem teste, classifique:
 Gerado apenas quando há lacunas 🔴 ou 🟡:
 
 ```
-## Prompt para o executor — Fechamento de Testes
+## Prompt para Claude Code — Fechamento de Testes
 
 ---
 
@@ -213,7 +213,7 @@ Quando acionado com `--before`:
 4. Entregue ao executor com o prompt:
 
 ```
-## Prompt para o executor — TDD Clássico
+## Prompt para Claude Code — TDD Clássico
 
 ---
 
@@ -279,4 +279,41 @@ Para cada teste, nesta ordem:
 - Alterar código de produção para facilitar testabilidade sem sinalizar
 - Emitir veredicto "aprovado" com lacunas 🔴 pendentes
 - Misturar convenções de stack em projetos mistos
-- No modo `--before`: gerar testes que já passam antes da implementação
+- No modo `--before`: gerar testes que já passam antes da implementação- Encerrar sem acionar o context-writer após emitir veredicto
+
+---
+
+## Integração com context-writer
+
+Ao final do workflow (Review Gate e TDD Clássico), após emitir o veredicto,
+acione o `context-writer` passando os seguintes dados:
+
+**Evento:** `qa_update`
+
+**Dados a passar:**
+```
+sprint: [número do sprint — extraído de --sprint N ou pergunte se não informado]
+veredicto: passed | failed | blocked
+lacunas_criticas: [número de lacunas 🔴 encontradas]
+lacunas_importantes: [número de lacunas 🟡 encontradas]
+relatorio: .claude/tdd/YYYY-MM-DD-nome-feature.md
+```
+
+O `context-writer` irá:
+- Atualizar `qa` no `sprint-N.md` e em `sprints.md`
+- Calcular o score final do sprint (combinando desvios do spec-verifier + lacunas do tdd-reviewer)
+- Gerar a seção "Contexto para Próxima Sessão" no `sprint-N.md`
+- Atualizar `current.md` com o estado mais recente
+
+**Se o sprint não for informado via flag:**
+Verifique em `.claude/context/sprints.md` qual sprint está com
+`build = verified` e `qa = pending` — esse é o sprint atual.
+
+**Mensagem final ao usuário após atualização:**
+```
+Sprint #N atualizado.
+QA: [passed/failed/blocked]   Score: [valor calculado]
+[Se passed]: Próximo passo: /contract --sprint N+1
+[Se failed]:  Corrija as lacunas e execute /review novamente.
+Monitor: python3 sdd.py
+```
