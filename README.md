@@ -119,19 +119,19 @@ O agente gera os testes primeiro; o executor implementa até fazê-los passar.
 
 ## Instalação
 
-# Instalar na raiz do projeto atual
+### Instalar na raiz do projeto atual
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/helgg/sdd-agent/master/install.sh | bash
 ```
 
-# Ou em um diretório específico
+### Ou em um diretório específico
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/helgg/sdd-agent/master/install.sh | bash -s ~/meu-projeto
 ```
 
-# Ou baixar e inspecionar antes
+### Ou baixar e inspecionar antes
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/helgg/sdd-agent/master/install.sh -o install.sh
