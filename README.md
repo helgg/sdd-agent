@@ -1,7 +1,8 @@
 # Spec-Driven Development
 
-Um sistema de arquivos para transformar ideias soltas em especificações
-executáveis e garantir cobertura de testes antes do merge.
+Um sistema de agentes para transformar ideias soltas em especificações
+executáveis, verificar aderência à spec e garantir cobertura de testes
+antes do merge.
 
 ## O problema
 
@@ -9,27 +10,37 @@ Agentes de IA não falham por falta de capacidade técnica. Falham por falta
 de contexto. Uma ideia vaga entregue a um executor capaz ainda produz resultado
 errado — porque a ambiguidade foi resolvida pelo agente, não por você.
 
-O mesmo vale para testes: sem uma etapa de verificação explícita, o executor
-entrega código funcionando mas sem cobertura adequada.
+O mesmo vale para o ciclo completo: sem verificação de aderência e sem portão
+de testes, o executor entrega código que funciona mas não é o que foi pedido,
+ou funciona mas sem cobertura adequada.
 
 ## A solução
 
-Separar três papéis que costumam se misturar:
+Separar quatro papéis que costumam se misturar:
 
 - **Você decide** — o que construir, por que agora, qual o resultado esperado
 - **O agente especifica** — investiga o código, documenta premissas, produz artefatos executáveis
+- **O agente verifica** — confronta o código implementado com a spec original e detecta desvios
 - **O agente audita** — verifica cobertura de testes por criticidade, bloqueia merge se necessário
 
 ## Estrutura
 
 ```
 .claude/
+├── agents/
+│   ├── spec-writer.md    # transforma ideia em PRD-Lite + prompt de execução
+│   ├── spec-verifier.md  # verifica aderência do código à spec original
+│   └── tdd-reviewer.md   # audita cobertura e gera prompt de fechamento de testes
 ├── commands/
-│   ├── idea.md          # /idea "sua ideia" → spec-writer
-│   └── review.md        # /review "feature" → tdd-reviewer
-└── agents/
-    ├── spec-writer.md   # transforma ideia em PRD-Lite + prompt de execução
-    └── tdd-reviewer.md  # audita cobertura e gera prompt de fechamento de testes
+│   ├── ideia.md          # /idea "sua ideia"
+│   ├── verify.md         # /verify "feature"
+│   └── review.md         # /review "feature"
+├── prds/                 # PRDs gerados pelo spec-writer
+├── prompts/              # prompts de execução e fechamento gerados pelos agentes
+├── tdd/                  # relatórios de cobertura gerados pelo tdd-reviewer
+└── verify/               # relatórios de aderência gerados pelo spec-verifier
+install.sh
+README.md
 ```
 
 ## Pipeline completa
@@ -40,14 +51,21 @@ Separar três papéis que costumam se misturar:
     → PRD-Lite salvo em .claude/prds/
     → Prompt de execução pronto
 
-→ Claude Code implementa
+→ Executor implementa
+
+/verify "nome da feature"
+    → spec-verifier confronta código com PRD-Lite
+    → Relatório de aderência salvo em .claude/verify/
+    → Prompt de correção gerado (se houver desvios)
+
+→ Executor corrige desvios (se necessário)
 
 /review "nome da feature"
     → tdd-reviewer audita cobertura por criticidade
     → Relatório salvo em .claude/tdd/
     → Prompt de fechamento gerado (se houver lacunas)
 
-→ Claude Code escreve testes ausentes
+→ Executor escreve testes ausentes
 
 → Merge aprovado
 ```
@@ -61,13 +79,27 @@ Separar três papéis que costumam se misturar:
 ```
 
 O agente investiga o código, faz perguntas se necessário, e entrega:
-- Um **PRD-Lite** salvo em `.claude/prds/`
+- Um **PRD-Lite** salvo em `.claude/prds/` — com diagrama Mermaid quando relevante
 - Um **prompt de execução** pronto para colar no executor
 
-### Auditar testes após implementação (padrão)
+### Verificar aderência após implementação
 
 ```
-/review "nome da feature implementada"
+/verify "nome da feature implementada"
+```
+
+O agente lê o PRD-Lite de referência, inspeciona o código implementado e entrega:
+- Um **relatório de aderência** salvo em `.claude/verify/`
+- Um **prompt de correção** com os desvios a corrigir (se houver)
+- Um **veredicto**: aprovado, aprovado com ressalvas, ou não aprovado
+
+Execute sempre antes do `/review` — desvios de escopo corrigidos antes da
+auditoria de testes evitam retrabalho duplo.
+
+### Auditar testes após verificação
+
+```
+/review "nome da feature"
 ```
 
 O agente detecta a stack de testes automaticamente, analisa os arquivos
@@ -92,8 +124,9 @@ O agente gera os testes primeiro; o executor implementa até fazê-los passar.
 **PRD-Lite** — documento curto com:
 - Problema concreto e beneficiário
 - Definição de pronto verificável
+- Diagrama Mermaid (quando a feature envolver fluxo, sequência ou estrutura)
 - Escopo negativo explícito
-- Áreas técnicas afetadas
+- Áreas técnicas afetadas com caminhos reais do código
 - Premissas assumidas documentadas
 
 **Prompt de execução** — texto fechado com:
@@ -103,6 +136,19 @@ O agente gera os testes primeiro; o executor implementa até fazê-los passar.
 - Domínios de preocupação a aplicar
 - Critérios de pronto binários
 - Verificação pós-implementação (🔴/🟡/🟢)
+
+### spec-verifier
+
+**Relatório de aderência** — auditoria com:
+- Verificação item a item dos critérios de pronto do PRD
+- Verificação dos componentes do diagrama Mermaid (se existir)
+- Desvios classificados: 🔴 Crítico / 🟡 Importante / 🟠 Adição não autorizada / 🟢 Conforme
+- Veredicto: aprovado, aprovado com ressalvas, ou não aprovado
+
+**Prompt de correção** — tarefa para o executor com:
+- Desvios a corrigir por prioridade
+- Arquivo afetado e correção esperada
+- Restrição explícita de não alterar o que já está conforme
 
 ### tdd-reviewer
 
@@ -140,12 +186,13 @@ bash install.sh
 
 ## Adaptação
 
-O sistema foi construído para Claude Code mas o conceito é agnóstico de
-ferramenta. Os arquivos podem ser adaptados para qualquer agente que suporte
-instruções em markdown e acesso ao sistema de arquivos.
+O sistema é agnóstico de ferramenta. Funciona com qualquer executor que suporte
+instruções em markdown e acesso ao sistema de arquivos: Claude Code, Cursor,
+Windsurf, Cline, e outros.
 
-O `spec-writer.md` e o `tdd-reviewer.md` referenciam domínios de preocupação
-genéricos. Substitua pelos domínios e skills específicos do seu projeto.
+Os agentes referenciam domínios de preocupação genéricos (arquitetura,
+segurança, interface, observabilidade etc). Substitua pelos domínios e skills
+específicos do seu projeto para resultados mais precisos.
 
 ---
 
