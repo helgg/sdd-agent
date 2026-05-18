@@ -115,7 +115,8 @@ main() {
   echo "  Próximos passos:"
   echo "  1. Abra o projeto"
   echo "  2. Execute: /idea \"descrição da sua ideia\""
-  echo "  3. Após implementar, execute: /review \"nome da feature\""
+  echo "  3. Após implementar, execute: /verify \"nome da feature\""
+  echo "  4. Em seguida, execute: /review \"nome da feature\""
   echo ""
   echo "  Documentação: https://github.com/${REPO}#readme"
 }
