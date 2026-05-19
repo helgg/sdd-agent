@@ -134,6 +134,7 @@ O `sdd.py` monitora o estado dos sprints em tempo real lendo `.claude/context/`:
 ```
 
 ```bash
+# Execute sempre da raiz do projeto (onde está .claude/context/)
 python3 sdd.py            # live — atualiza a cada 2s (padrão)
 python3 sdd.py status     # snapshot estático
 python3 sdd.py sprint 2   # detalhes do sprint #2
@@ -165,7 +166,7 @@ bash install.sh
 ```
 
 **Dependências:**
-- Python 3.8+
+- Python 3.12+
 - `rich` (instalado automaticamente pelo installer)
 - Qualquer executor com suporte a markdown e sistema de arquivos
 
