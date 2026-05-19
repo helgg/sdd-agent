@@ -26,6 +26,7 @@ COMMANDS=(
   ".claude/commands/review.md"
   ".claude/commands/contract.md"
   ".claude/commands/sprint.md"
+  ".claude/commands/audit-repo.md"
 )
 
 # CLI
@@ -66,6 +67,18 @@ check_dependencies() {
   fi
 }
 
+is_project_root() {
+  local dir="$1"
+  # Verifica marcadores comuns de raiz de projeto
+  git -C "$dir" rev-parse --git-dir &>/dev/null && return 0
+  [[ -f "$dir/package.json" ]]   && return 0
+  [[ -f "$dir/pyproject.toml" ]] && return 0
+  [[ -f "$dir/go.mod" ]]         && return 0
+  [[ -f "$dir/Cargo.toml" ]]     && return 0
+  [[ -f "$dir/pom.xml" ]]        && return 0
+  return 1
+}
+
 confirm_target() {
   local target_dir="${1:-.}"
 
@@ -76,12 +89,11 @@ confirm_target() {
 
   echo -e "Instalando em: ${YELLOW}$(realpath "$target_dir")${RESET}"
 
-  if [[ ! -f "$target_dir/.git/config" ]] && \
-     [[ ! -f "$target_dir/package.json" ]] && \
-     [[ ! -f "$target_dir/pyproject.toml" ]] && \
-     [[ ! -f "$target_dir/go.mod" ]]; then
-    warn "Nenhum arquivo de projeto detectado. Tem certeza que este é o diretório correto?"
-    read -r -p "Continuar mesmo assim? [s/N] " confirm
+  if ! is_project_root "$target_dir"; then
+    warn "Nenhum projeto detectado neste diretório."
+    # Lê do /dev/tty para funcionar corretamente com curl | bash
+    local confirm
+    read -r -p "Continuar mesmo assim? [s/N] " confirm </dev/tty
     [[ "${confirm,,}" == "s" ]] || { echo "Instalação cancelada."; exit 0; }
   fi
 }
@@ -116,7 +128,6 @@ create_output_dirs() {
 
   for dir in "${dirs[@]}"; do
     mkdir -p "$target_dir/$dir"
-    # Cria .gitkeep apenas se o diretório estiver vazio
     if [[ -z "$(ls -A "$target_dir/$dir" 2>/dev/null)" ]]; then
       touch "$target_dir/$dir/.gitkeep"
     fi
@@ -173,12 +184,15 @@ main() {
   echo "  4. /sprint done 1         → executor conclui"
   echo "  5. /verify \"feature\"      → spec-verifier valida aderência"
   echo "  6. /review \"feature\"      → tdd-reviewer audita testes"
-  echo "  7. /sprint               → visão geral de todos os sprints"
+  echo "  7. /sprint                → visão geral de todos os sprints"
   echo ""
   echo "  Monitor em tempo real:"
   echo "  ${BOLD}python3 sdd.py${RESET}            → dashboard live no terminal"
   echo "  ${BOLD}python3 sdd.py status${RESET}     → snapshot estático"
   echo "  ${BOLD}python3 sdd.py context${RESET}    → contexto para nova sessão"
+  echo ""
+  echo "  Auditoria do repositório:"
+  echo "  ${BOLD}/audit-repo${RESET}               → valida integridade via Claude Code"
   echo ""
   echo "  Documentação: https://github.com/${REPO}#readme"
 }
