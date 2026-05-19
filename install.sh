@@ -190,9 +190,6 @@ main() {
   echo "  ${BOLD}python3 sdd.py status${RESET}     → snapshot estático"
   echo "  ${BOLD}python3 sdd.py context${RESET}    → contexto para nova sessão"
   echo ""
-  echo "  Auditoria do repositório:"
-  echo "  ${BOLD}/audit-repo${RESET}               → valida integridade via Claude Code"
-  echo ""
   echo "  Documentação: https://github.com/${REPO}#readme"
 }
 
