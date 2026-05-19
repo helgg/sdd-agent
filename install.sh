@@ -26,7 +26,6 @@ COMMANDS=(
   ".claude/commands/review.md"
   ".claude/commands/contract.md"
   ".claude/commands/sprint.md"
-  ".claude/commands/audit-repo.md"
 )
 
 # CLI
