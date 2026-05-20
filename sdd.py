@@ -253,9 +253,15 @@ def build_activity_panel(entries: list) -> Panel:
             # Estilo por evento
             if event == "started":
                 icon, style = "▶", "bold cyan"
+            elif event == "in_progress":
+                icon, style = next_frame(), "bold yellow"
             elif event == "progress":
                 icon, style = "·", "white"
             elif event == "done":
+                icon, style = "✓", "bold green"
+            elif event == "verified":
+                icon, style = "✓", "bold green"
+            elif event == "passed":
                 icon, style = "✓", "bold green"
             elif event == "failed":
                 icon, style = "✗", "bold red"
@@ -264,11 +270,12 @@ def build_activity_panel(entries: list) -> Panel:
             else:
                 icon, style = "↳", "dim"
 
+            highlight = event in ("started","done","verified","passed","failed","blocked","in_progress")
             t = Text()
             t.append(f"{ts} ", style="dim")
             t.append(f"{icon} ", style=style)
             t.append(f"[{agent}] ", style="dim cyan")
-            t.append(msg, style=style if event in ("started","done","failed","blocked") else "white")
+            t.append(msg, style=style if highlight else "white")
             lines.append(t)
 
     return Panel(
@@ -279,7 +286,7 @@ def build_activity_panel(entries: list) -> Panel:
     )
 
 
-def build_header(feature: str, prd: str) -> Text:
+def build_header(feature: str, prd: str, updated_at: str = "—") -> Text:
     t = Text()
     t.append("sdd", style="bold cyan")
     t.append("  —  ", style="dim")
@@ -289,7 +296,44 @@ def build_header(feature: str, prd: str) -> Text:
     t.append(feature, style="white")
     t.append("   prd: ", style="dim")
     t.append(prd, style="dim italic")
+    t.append("   updated: ", style="dim")
+    t.append(updated_at, style="dim")
     return t
+
+
+def build_current_panel(current: dict) -> Panel:
+    lines = []
+    goal = current.get("goal", "—")
+    nxt  = current.get("next_step", "—")
+    done = current.get("done", []) or []
+    sprint_num = current.get("sprint_num", "—")
+
+    header = Text()
+    header.append("Sprint #", style="dim")
+    header.append(str(sprint_num), style="bold white")
+    header.append("   goal: ", style="dim")
+    header.append(goal, style="white")
+    lines.append(header)
+
+    nxt_line = Text()
+    nxt_line.append("next: ", style="dim")
+    nxt_line.append(nxt, style="bold cyan")
+    lines.append(nxt_line)
+
+    if done:
+        lines.append(Text("done so far:", style="dim"))
+        for b in done[-4:]:
+            li = Text()
+            li.append("  • ", style="green")
+            li.append(b, style="white")
+            lines.append(li)
+
+    return Panel(
+        Group(*lines),
+        title="[bold]Current Sprint[/bold]",
+        border_style="grey50",
+        padding=(0, 1),
+    )
 
 
 def build_footer(data: dict, current: dict, start_time: float, cost: str) -> Text:
@@ -321,11 +365,12 @@ def build_footer(data: dict, current: dict, start_time: float, cost: str) -> Tex
 def build_layout(data, current, entries, start_time, cost) -> Panel:
     return Panel(
         Group(
-            build_header(data["feature"], data["prd"]),
+            build_header(data["feature"], data["prd"], data.get("updated_at", "—")),
             Text(""),
             Panel(build_sprints_table(data["sprints"]),
                   title="[bold]Sprints[/bold]",
                   border_style="grey50", padding=(0, 1)),
+            build_current_panel(current),
             build_activity_panel(entries),
             Text(""),
             build_footer(data, current, start_time, cost),
