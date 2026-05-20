@@ -68,6 +68,18 @@ check_dependencies() {
   fi
 }
 
+is_project_root() {
+  local dir="$1"
+  # Verifica marcadores comuns de raiz de projeto
+  git -C "$dir" rev-parse --git-dir &>/dev/null && return 0
+  [[ -f "$dir/package.json" ]]   && return 0
+  [[ -f "$dir/pyproject.toml" ]] && return 0
+  [[ -f "$dir/go.mod" ]]         && return 0
+  [[ -f "$dir/Cargo.toml" ]]     && return 0
+  [[ -f "$dir/pom.xml" ]]        && return 0
+  return 1
+}
+
 confirm_target() {
   local target_dir="${1:-.}"
 
@@ -119,7 +131,6 @@ create_output_dirs() {
 
   for dir in "${dirs[@]}"; do
     mkdir -p "$target_dir/$dir"
-    # Cria .gitkeep apenas se o diretório estiver vazio
     if [[ -z "$(ls -A "$target_dir/$dir" 2>/dev/null)" ]]; then
       touch "$target_dir/$dir/.gitkeep"
     fi
