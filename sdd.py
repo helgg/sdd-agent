@@ -7,68 +7,72 @@ Monitora o estado dos sprints em tempo real lendo .claude/context/
 import sys
 import time
 import argparse
+import subprocess
+import threading
 from pathlib import Path
 from datetime import datetime
 import re
 
 from rich.console import Console
-from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.columns import Columns
 from rich import box
-from rich.align import Align
-from rich.style import Style
 from rich.console import Group
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
+from rich.spinner import Spinner
 
 # ─────────────────────────────────────────────
 # Constantes
 # ─────────────────────────────────────────────
 
-CONTEXT_DIR = Path(".claude/context")
+CONTEXT_DIR  = Path(".claude/context")
 SPRINTS_FILE = CONTEXT_DIR / "sprints.md"
 CURRENT_FILE = CONTEXT_DIR / "current.md"
-REFRESH_RATE = 2  # segundos entre refreshes
+ACTIVITY_LOG = CONTEXT_DIR / "activity.log"
+REFRESH_RATE = 1.5
 
-STATUS_STYLE = {
-    # Contract
-    "AGREED":      ("✓ AGREED",      "bold green"),
-    "VIOLATED":    ("✗ VIOLATED",    "bold red"),
-    "pending":     ("  pending",     "dim"),
-    # Build / QA
-    "in_progress": ("… running",     "bold yellow"),
-    "done":        ("✓ done",        "bold green"),
-    "verified":    ("✓ verified",    "bold green"),
-    "failed":      ("✗ failed",      "bold red"),
-    "passed":      ("✓ passed",      "bold green"),
-    "blocked":     ("⊘ blocked",     "bold red"),
-    "—":           ("  —",           "dim"),
+# Mapa de status → (label, style)
+STATUS = {
+    "AGREED":      ("✓ AGREED",   "bold green"),
+    "VIOLATED":    ("✗ VIOLATED", "bold red"),
+    "pending":     ("—",          "dim"),
+    "in_progress": ("",           "bold yellow"),   # spinner inline
+    "done":        ("✓ done",     "bold green"),
+    "verified":    ("✓ verified", "bold green"),
+    "failed":      ("✗ failed",   "bold red"),
+    "passed":      ("✓ passed",   "bold green"),
+    "blocked":     ("⊘ blocked",  "bold red"),
+    "—":           ("—",          "dim"),
 }
 
+# Spinner frames estilo uv
+UV_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+
 console = Console()
+_frame_idx = 0
+_frame_lock = threading.Lock()
+
+
+def next_frame() -> str:
+    global _frame_idx
+    with _frame_lock:
+        f = UV_FRAMES[_frame_idx % len(UV_FRAMES)]
+        _frame_idx += 1
+    return f
 
 
 # ─────────────────────────────────────────────
-# Parsing dos arquivos de contexto
+# Parsing
 # ─────────────────────────────────────────────
 
 def parse_sprints(path: Path) -> dict:
-    """Lê sprints.md e retorna dados estruturados."""
-    result = {
-        "feature": "—",
-        "prd": "—",
-        "updated_at": "—",
-        "sprints": [],
-    }
-
+    result = {"feature": "—", "prd": "—", "updated_at": "—", "sprints": []}
     if not path.exists():
         return result
 
     content = path.read_text(encoding="utf-8")
-
-    # Metadata
     for line in content.splitlines():
         if line.startswith("**Última atualização**"):
             result["updated_at"] = line.split(":", 1)[-1].strip()
@@ -77,23 +81,19 @@ def parse_sprints(path: Path) -> dict:
         elif line.startswith("**PRD de referência**"):
             result["prd"] = line.split(":", 1)[-1].strip().strip("`")
 
-    # Tabela de sprints — linhas que começam com "| N"
     for line in content.splitlines():
         line = line.strip()
         if not line.startswith("|"):
             continue
-        parts = [p.strip() for p in line.split("|")]
-        parts = [p for p in parts if p != ""]
+        parts = [p.strip() for p in line.split("|") if p.strip()]
         if len(parts) < 6:
             continue
-        # Ignora cabeçalho e separador
         if parts[0] in ("#", "---", "—") or re.match(r"^-+$", parts[0]):
             continue
         try:
             num = int(parts[0])
         except ValueError:
             continue
-
         result["sprints"].append({
             "num":      num,
             "goal":     parts[1] if len(parts) > 1 else "—",
@@ -103,72 +103,97 @@ def parse_sprints(path: Path) -> dict:
             "score":    parts[5] if len(parts) > 5 else "—",
             "cost":     parts[6] if len(parts) > 6 else "—",
         })
-
     return result
 
 
 def parse_current(path: Path) -> dict:
-    """Lê current.md e retorna o contexto atual."""
-    result = {
-        "sprint_num": "—",
-        "goal": "—",
-        "next_step": "—",
-        "done": [],
-        "updated_at": "—",
-    }
-
+    result = {"sprint_num": "—", "goal": "—", "next_step": "—",
+              "done": [], "updated_at": "—"}
     if not path.exists():
         return result
 
-    content = path.read_text(encoding="utf-8")
-    lines = content.splitlines()
-
     section = None
-    for line in lines:
-        stripped = line.strip()
-
-        if stripped.startswith("**Atualizado em**"):
-            result["updated_at"] = stripped.split(":", 1)[-1].strip()
-        elif stripped.startswith("**Goal**"):
-            result["goal"] = stripped.split(":", 1)[-1].strip()
-        elif stripped.startswith("**Próximo passo**"):
-            result["next_step"] = stripped.split(":", 1)[-1].strip()
-        elif stripped.startswith("## Sprint Atual"):
-            m = re.search(r"#(\d+)", stripped)
+    for line in path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if s.startswith("**Atualizado em**"):
+            result["updated_at"] = s.split(":", 1)[-1].strip()
+        elif s.startswith("**Goal**"):
+            result["goal"] = s.split(":", 1)[-1].strip()
+        elif s.startswith("**Próximo passo**"):
+            result["next_step"] = s.split(":", 1)[-1].strip()
+        elif s.startswith("## Sprint Atual"):
+            m = re.search(r"#(\d+)", s)
             if m:
                 result["sprint_num"] = m.group(1)
-        elif stripped == "## O que foi feito até aqui":
+        elif s == "## O que foi feito até aqui":
             section = "done"
-        elif stripped.startswith("## ") and section == "done":
+        elif s.startswith("## ") and section == "done":
             section = None
-        elif section == "done" and stripped.startswith("- "):
-            result["done"].append(stripped[2:])
-
+        elif section == "done" and s.startswith("- "):
+            result["done"].append(s[2:])
     return result
 
 
-def get_activity(context_dir: Path) -> str:
-    """Retorna a última linha de atividade lendo o sprint atual."""
-    current = context_dir / "current.md"
-    if not current.exists():
-        return "Waiting for agent activity..."
+def parse_activity_log(path: Path, n: int = 8) -> list[dict]:
+    """
+    Lê as últimas N linhas do activity.log.
+    Formato: AGENT|sprint-N|event|timestamp|message
+    """
+    if not path.exists():
+        return []
 
-    content = current.read_text(encoding="utf-8")
-    for line in reversed(content.splitlines()):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    entries = []
+    for line in reversed(lines):
         line = line.strip()
-        if line.startswith("- `") and "—" in line:
-            # Linha de histórico: `YYYY-MM-DD HH:MM` — evento
-            return line.lstrip("- ").strip()
+        if not line:
+            continue
+        parts = line.split("|", 4)
+        if len(parts) < 5:
+            # linha livre — mostra como está
+            entries.append({"agent": "—", "sprint": "—",
+                             "event": "info", "ts": "", "msg": line})
+        else:
+            entries.append({
+                "agent":  parts[0],
+                "sprint": parts[1],
+                "event":  parts[2],
+                "ts":     parts[3],
+                "msg":    parts[4],
+            })
+        if len(entries) >= n:
+            break
+    return list(reversed(entries))
 
-    return "Waiting for agent activity..."
+
+def get_cost() -> str:
+    """
+    Extrai o custo total da sessão atual via `claude /usage`.
+    Retorna string como '$3.58' ou '—' se não disponível.
+    """
+    try:
+        result = subprocess.run(
+            ["claude", "/usage"],
+            capture_output=True, text=True, timeout=3
+        )
+        output = result.stdout + result.stderr
+        m = re.search(r"Total cost:\s+\$([0-9]+\.[0-9]+)", output)
+        if m:
+            return f"${m.group(1)}"
+    except Exception:
+        pass
+    return "—"
 
 
 # ─────────────────────────────────────────────
 # Componentes visuais
 # ─────────────────────────────────────────────
 
-def render_status(value: str) -> Text:
-    label, style = STATUS_STYLE.get(value, (value, "default"))
+def render_status(value: str, animate: bool = True) -> Text:
+    if value == "in_progress" and animate:
+        frame = next_frame()
+        return Text(f"{frame} running", style="bold yellow")
+    label, style = STATUS.get(value, (value, "default"))
     return Text(label, style=style)
 
 
@@ -180,29 +205,24 @@ def build_sprints_table(sprints: list) -> Table:
         expand=True,
         padding=(0, 1),
     )
-
-    table.add_column("#",        style="bold cyan",  width=3,  no_wrap=True)
-    table.add_column("Goal",     style="white",       ratio=3)
+    table.add_column("#",        style="bold cyan", width=3,  no_wrap=True)
+    table.add_column("Goal",     style="white",     ratio=3)
     table.add_column("Contract", width=14, no_wrap=True)
     table.add_column("Build",    width=14, no_wrap=True)
     table.add_column("QA",       width=14, no_wrap=True)
     table.add_column("Score",    width=7,  no_wrap=True, justify="right")
-    table.add_column("Cost",     width=5,  no_wrap=True, justify="right")
+    table.add_column("Cost",     width=6,  no_wrap=True, justify="right")
 
     if not sprints:
         table.add_row("—", "Nenhum sprint encontrado", "—", "—", "—", "—", "—")
         return table
 
     for s in sprints:
-        score_text = Text(s["score"])
         try:
-            score_val = int(s["score"])
-            if score_val >= 90:
-                score_text = Text(s["score"], style="bold green")
-            elif score_val >= 70:
-                score_text = Text(s["score"], style="bold yellow")
-            else:
-                score_text = Text(s["score"], style="bold red")
+            sv = int(s["score"])
+            score_text = Text(s["score"],
+                style="bold green" if sv >= 90 else
+                      "bold yellow" if sv >= 70 else "bold red")
         except ValueError:
             score_text = Text("—", style="dim")
 
@@ -215,24 +235,41 @@ def build_sprints_table(sprints: list) -> Table:
             score_text,
             Text(s["cost"], style="dim"),
         )
-
     return table
 
 
-def build_activity_panel(activity: str, current: dict) -> Panel:
+def build_activity_panel(entries: list) -> Panel:
     lines = []
 
-    if current["next_step"] != "—":
-        lines.append(Text.assemble(
-            ("Próximo passo: ", "bold yellow"),
-            (current["next_step"], "white"),
-        ))
-        lines.append(Text(""))
+    if not entries:
+        lines.append(Text("↳ Waiting for agent activity...", style="dim italic"))
+    else:
+        for e in entries:
+            event = e["event"]
+            msg   = e["msg"]
+            agent = e["agent"]
+            ts    = e["ts"][11:16] if len(e["ts"]) >= 16 else e["ts"]  # HH:MM
 
-    lines.append(Text.assemble(
-        ("↳ ", "dim"),
-        (activity, "italic dim"),
-    ))
+            # Estilo por evento
+            if event == "started":
+                icon, style = "▶", "bold cyan"
+            elif event == "progress":
+                icon, style = "·", "white"
+            elif event == "done":
+                icon, style = "✓", "bold green"
+            elif event == "failed":
+                icon, style = "✗", "bold red"
+            elif event == "blocked":
+                icon, style = "⊘", "bold yellow"
+            else:
+                icon, style = "↳", "dim"
+
+            t = Text()
+            t.append(f"{ts} ", style="dim")
+            t.append(f"{icon} ", style=style)
+            t.append(f"[{agent}] ", style="dim cyan")
+            t.append(msg, style=style if event in ("started","done","failed","blocked") else "white")
+            lines.append(t)
 
     return Panel(
         Group(*lines),
@@ -248,49 +285,50 @@ def build_header(feature: str, prd: str) -> Text:
     t.append("  —  ", style="dim")
     t.append("Spec-Driven Development", style="bold white")
     t.append("\n")
-    t.append(f"feature: ", style="dim")
+    t.append("feature: ", style="dim")
     t.append(feature, style="white")
     t.append("   prd: ", style="dim")
     t.append(prd, style="dim italic")
     return t
 
 
-def build_footer(data: dict, current: dict, start_time: float) -> Text:
+def build_footer(data: dict, current: dict, start_time: float, cost: str) -> Text:
     elapsed = int(time.time() - start_time)
     mins, secs = divmod(elapsed, 60)
-
-    active_sprint = current["sprint_num"]
     total = len(data["sprints"])
+    active = current["sprint_num"]
 
-    scores = [s["score"] for s in data["sprints"] if s["score"] not in ("—", "")]
-    avg_score = f"{sum(int(s) for s in scores) // len(scores)}" if scores else "—"
+    scores = []
+    for s in data["sprints"]:
+        try:
+            scores.append(int(s["score"]))
+        except ValueError:
+            pass
+    avg = f"{sum(scores) // len(scores)}" if scores else "—"
 
     t = Text()
     t.append("  sprint ", style="dim")
-    t.append(f"{active_sprint} / {total}", style="bold white")
+    t.append(f"{active} / {total}", style="bold white")
     t.append("   score ", style="dim")
-    t.append(avg_score, style="bold green" if avg_score != "—" else "dim")
+    t.append(avg, style="bold green" if avg != "—" else "dim")
+    t.append("   cost ", style="dim")
+    t.append(cost, style="bold yellow" if cost != "—" else "dim")
     t.append(f"   elapsed ", style="dim")
     t.append(f"{mins}m {secs:02d}s", style="white")
-    t.append(f"   updated ", style="dim")
-    t.append(data["updated_at"], style="dim italic")
     return t
 
 
-def build_layout(data: dict, current: dict, activity: str, start_time: float) -> Panel:
-    header = build_header(data["feature"], data["prd"])
-    sprints_table = build_sprints_table(data["sprints"])
-    activity_panel = build_activity_panel(activity, current)
-    footer = build_footer(data, current, start_time)
-
+def build_layout(data, current, entries, start_time, cost) -> Panel:
     return Panel(
         Group(
-            header,
+            build_header(data["feature"], data["prd"]),
             Text(""),
-            Panel(sprints_table, title="[bold]Sprints[/bold]", border_style="grey50", padding=(0, 1)),
-            activity_panel,
+            Panel(build_sprints_table(data["sprints"]),
+                  title="[bold]Sprints[/bold]",
+                  border_style="grey50", padding=(0, 1)),
+            build_activity_panel(entries),
             Text(""),
-            footer,
+            build_footer(data, current, start_time, cost),
         ),
         box=box.ROUNDED,
         border_style="cyan",
@@ -303,64 +341,73 @@ def build_layout(data: dict, current: dict, activity: str, start_time: float) ->
 # ─────────────────────────────────────────────
 
 def cmd_watch(args):
-    """Modo live — atualiza em tempo real."""
     if not CONTEXT_DIR.exists():
-        console.print(
-            Panel(
-                "[yellow]Diretório .claude/context/ não encontrado.[/yellow]\n\n"
-                "Execute [bold cyan]/idea[/bold cyan] no Claude Code para inicializar o projeto.",
-                title="[bold red]sdd[/bold red]",
-                border_style="red",
-            )
-        )
+        console.print(Panel(
+            "[yellow]Diretório .claude/context/ não encontrado.[/yellow]\n\n"
+            "Execute [bold cyan]/idea[/bold cyan] para inicializar o projeto.",
+            title="[bold red]sdd[/bold red]", border_style="red"))
         sys.exit(1)
 
     start_time = time.time()
+    cost = "—"
+    cost_last_check = 0
+    COST_INTERVAL = 30  # atualiza custo a cada 30s
 
-    with Live(console=console, refresh_per_second=1 / REFRESH_RATE, screen=True) as live:
+    with Live(console=console, refresh_per_second=1/REFRESH_RATE,
+              screen=True) as live:
         while True:
-            data = parse_sprints(SPRINTS_FILE)
+            now = time.time()
+            if now - cost_last_check > COST_INTERVAL:
+                cost = get_cost()
+                cost_last_check = now
+
+            data    = parse_sprints(SPRINTS_FILE)
             current = parse_current(CURRENT_FILE)
-            activity = get_activity(CONTEXT_DIR)
-            layout = build_layout(data, current, activity, start_time)
+            entries = parse_activity_log(ACTIVITY_LOG)
+            layout  = build_layout(data, current, entries, start_time, cost)
             live.update(layout)
             time.sleep(REFRESH_RATE)
 
 
 def cmd_status(args):
-    """Exibe status atual sem modo live."""
     if not SPRINTS_FILE.exists():
-        console.print("[yellow]Nenhum sprint encontrado em .claude/context/sprints.md[/yellow]")
+        console.print("[yellow]Nenhum sprint em .claude/context/sprints.md[/yellow]")
         sys.exit(1)
 
-    data = parse_sprints(SPRINTS_FILE)
+    data    = parse_sprints(SPRINTS_FILE)
     current = parse_current(CURRENT_FILE)
-    activity = get_activity(CONTEXT_DIR)
-    start_time = time.time()
-
-    layout = build_layout(data, current, activity, start_time)
-    console.print(layout)
+    entries = parse_activity_log(ACTIVITY_LOG)
+    cost    = get_cost()
+    console.print(build_layout(data, current, entries, time.time(), cost))
 
 
 def cmd_sprint(args):
-    """Exibe detalhes de um sprint específico."""
-    sprint_file = CONTEXT_DIR / f"sprint-{args.n}.md"
-    if not sprint_file.exists():
-        console.print(f"[red]Sprint #{args.n} não encontrado em {sprint_file}[/red]")
+    f = CONTEXT_DIR / f"sprint-{args.n}.md"
+    if not f.exists():
+        console.print(f"[red]Sprint #{args.n} não encontrado[/red]")
         sys.exit(1)
-
-    content = sprint_file.read_text(encoding="utf-8")
-    console.print(Panel(content, title=f"[bold cyan]Sprint #{args.n}[/bold cyan]", border_style="cyan"))
+    console.print(Panel(f.read_text(encoding="utf-8"),
+                        title=f"[bold cyan]Sprint #{args.n}[/bold cyan]",
+                        border_style="cyan"))
 
 
 def cmd_context(args):
-    """Exibe o current.md — contexto para nova sessão."""
     if not CURRENT_FILE.exists():
-        console.print("[yellow]current.md não encontrado. Nenhum sprint inicializado ainda.[/yellow]")
+        console.print("[yellow]current.md não encontrado.[/yellow]")
         sys.exit(1)
+    console.print(Panel(CURRENT_FILE.read_text(encoding="utf-8"),
+                        title="[bold cyan]Contexto Atual[/bold cyan]",
+                        border_style="cyan"))
 
-    content = CURRENT_FILE.read_text(encoding="utf-8")
-    console.print(Panel(content, title="[bold cyan]Contexto Atual[/bold cyan]", border_style="cyan"))
+
+def cmd_log(args):
+    """Exibe o activity log completo."""
+    if not ACTIVITY_LOG.exists():
+        console.print("[yellow]activity.log não encontrado.[/yellow]")
+        sys.exit(1)
+    entries = parse_activity_log(ACTIVITY_LOG, n=50)
+    panel = build_activity_panel(entries)
+    console.print(panel)
 
 
 # ─────────────────────────────────────────────
@@ -373,31 +420,22 @@ def main():
         description="Spec-Driven Development — monitor de sprints",
     )
     sub = parser.add_subparsers(dest="command")
+    sub.add_parser("watch",   help="Monitor live (padrão)")
+    sub.add_parser("status",  help="Snapshot estático")
+    sub.add_parser("context", help="Contexto para nova sessão")
+    sub.add_parser("log",     help="Activity log completo")
 
-    # watch (padrão)
-    sub.add_parser("watch", help="Monitor em tempo real (padrão)")
-
-    # status
-    sub.add_parser("status", help="Exibe status atual sem live update")
-
-    # sprint N
-    p_sprint = sub.add_parser("sprint", help="Detalhes de um sprint específico")
-    p_sprint.add_argument("n", type=int, help="Número do sprint")
-
-    # context
-    sub.add_parser("context", help="Exibe contexto atual para nova sessão")
+    p = sub.add_parser("sprint", help="Detalhes de um sprint")
+    p.add_argument("n", type=int)
 
     args = parser.parse_args()
+    cmd = args.command
 
-    # Padrão: watch
-    if args.command is None or args.command == "watch":
-        cmd_watch(args)
-    elif args.command == "status":
-        cmd_status(args)
-    elif args.command == "sprint":
-        cmd_sprint(args)
-    elif args.command == "context":
-        cmd_context(args)
+    if   cmd is None or cmd == "watch":   cmd_watch(args)
+    elif cmd == "status":                 cmd_status(args)
+    elif cmd == "sprint":                 cmd_sprint(args)
+    elif cmd == "context":                cmd_context(args)
+    elif cmd == "log":                    cmd_log(args)
 
 
 if __name__ == "__main__":

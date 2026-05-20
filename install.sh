@@ -17,6 +17,7 @@ AGENTS=(
   ".claude/agents/tdd-reviewer.md"
   ".claude/agents/contract-writer.md"
   ".claude/agents/context-writer.md"
+  ".claude/agents/spec-dev.md"
 )
 
 # Commands
@@ -26,6 +27,7 @@ COMMANDS=(
   ".claude/commands/review.md"
   ".claude/commands/contract.md"
   ".claude/commands/sprint.md"
+  ".claude/commands/yolo.md"
 )
 
 # CLI
@@ -76,12 +78,13 @@ confirm_target() {
 
   echo -e "Instalando em: ${YELLOW}$(realpath "$target_dir")${RESET}"
 
-  if [[ ! -f "$target_dir/.git/config" ]] && \
+  if ! git -C "$target_dir" rev-parse --git-dir &>/dev/null && \
      [[ ! -f "$target_dir/package.json" ]] && \
      [[ ! -f "$target_dir/pyproject.toml" ]] && \
-     [[ ! -f "$target_dir/go.mod" ]]; then
+     [[ ! -f "$target_dir/go.mod" ]] && \
+     [[ ! -f "$target_dir/Cargo.toml" ]]; then
     warn "Nenhum arquivo de projeto detectado. Tem certeza que este é o diretório correto?"
-    read -r -p "Continuar mesmo assim? [s/N] " confirm
+    read -r -p "Continuar mesmo assim? [s/N] " confirm </dev/tty
     [[ "${confirm,,}" == "s" ]] || { echo "Instalação cancelada."; exit 0; }
   fi
 }
@@ -165,7 +168,7 @@ main() {
 
   heading "Instalação concluída!"
   echo ""
-  echo "  Pipeline completa:"
+  echo "  Pipeline manual:"
   echo ""
   echo "  1. /idea \"sua ideia\"      → spec-writer gera PRD + sprints"
   echo "  2. /contract --sprint 1   → contrato executor ↔ QA"
@@ -173,11 +176,16 @@ main() {
   echo "  4. /sprint done 1         → executor conclui"
   echo "  5. /verify \"feature\"      → spec-verifier valida aderência"
   echo "  6. /review \"feature\"      → tdd-reviewer audita testes"
-  echo "  7. /sprint               → visão geral de todos os sprints"
+  echo "  7. /sprint                → visão geral de todos os sprints"
+  echo ""
+  echo "  Modo autônomo (YOLO):"
+  echo "  ${BOLD}/yolo${RESET}                     → aprove o PRD e a pipeline roda sozinha"
+  echo "  ${BOLD}/yolo --stop${RESET}              → interrompe o modo autônomo"
   echo ""
   echo "  Monitor em tempo real:"
-  echo "  ${BOLD}python3 sdd.py${RESET}            → dashboard live no terminal"
+  echo "  ${BOLD}python3 sdd.py${RESET}            → dashboard live com activity feed"
   echo "  ${BOLD}python3 sdd.py status${RESET}     → snapshot estático"
+  echo "  ${BOLD}python3 sdd.py log${RESET}        → activity log completo"
   echo "  ${BOLD}python3 sdd.py context${RESET}    → contexto para nova sessão"
   echo ""
   echo "  Documentação: https://github.com/${REPO}#readme"

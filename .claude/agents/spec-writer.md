@@ -183,7 +183,7 @@ Para cada batch, gere um prompt de execução separado.
 ## Formato do Prompt de Execução
 
 ```
-## Prompt para Claude Code
+## Prompt para o Executor
 
 ---
 

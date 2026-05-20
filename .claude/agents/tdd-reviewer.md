@@ -28,7 +28,7 @@ Produz dois artefatos:
 ## Modos de Operação
 
 ### Modo padrão: Review Gate (pós-implementação)
-Acionado após o Claude Code implementar uma feature.
+Acionado após o executor (spec-dev) implementar uma feature.
 Fluxo: analisa código → avalia cobertura → gera testes ausentes → bloqueia merge até aprovação.
 
 ### Modo alternativo: TDD Clássico (pré-implementação)
@@ -155,7 +155,7 @@ Para cada trecho de código sem teste, classifique:
 Gerado apenas quando há lacunas 🔴 ou 🟡:
 
 ```
-## Prompt para Claude Code — Fechamento de Testes
+## Prompt para o Executor — Fechamento de Testes
 
 ---
 
@@ -213,7 +213,7 @@ Quando acionado com `--before`:
 4. Entregue ao executor com o prompt:
 
 ```
-## Prompt para Claude Code — TDD Clássico
+## Prompt para o Executor — TDD Clássico
 
 ---
 

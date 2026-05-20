@@ -1,8 +1,9 @@
 # Spec-Driven Development
 
 Um sistema de agentes para transformar ideias soltas em especificações
-executáveis, organizar o trabalho em sprints rastreáveis e garantir
-qualidade antes do merge — com um dashboard de terminal em tempo real.
+executáveis, organizar o trabalho em sprints rastreáveis, executar com
+precisão cirúrgica e garantir qualidade antes do merge — com um dashboard
+de terminal em tempo real.
 
 ## O problema
 
@@ -12,15 +13,17 @@ produz resultado errado — porque a ambiguidade foi resolvida pelo agente,
 não por você.
 
 Sem estrutura, o executor também sofre de amnésia entre sessões, declara
-vitória prematura, e mistura planejamento com execução com validação.
+vitória prematura, implementa além do escopo e mistura planejamento com
+execução com validação.
 
 ## A solução
 
-Separar cinco papéis com responsabilidades claras:
+Separar seis papéis com responsabilidades claras:
 
 - **Você decide** — o que construir, por que agora, qual o resultado esperado
-- **spec-writer especifica** — investiga o código, documenta premissas, quebra em sprints
+- **spec-writer especifica** — investiga o código, documenta premissas, quebra em sprints com diagrama Mermaid
 - **contract-writer formaliza** — gera o acordo executor ↔ QA antes de cada sprint
+- **spec-dev executa** — implementa cirurgicamente o que foi acordado, nada além
 - **spec-verifier valida** — confronta o código com a spec e detecta desvios
 - **tdd-reviewer audita** — verifica cobertura de testes por criticidade
 - **context-writer memoriza** — persiste o estado entre sessões, elimina amnésia
@@ -32,29 +35,39 @@ de Dependências (T1, T2, T3...). Cada sprint tem goal, contrato, status de
 build, QA, score e custo.
 
 **Contract** — acordo formal gerado antes do executor começar. Define o que
-o executor vai construir e o que o QA vai validar, ambos derivados do PRD-Lite.
+o spec-dev vai construir e o que o QA vai validar, ambos derivados do PRD-Lite.
 Elimina conflito de interesses entre implementação e validação.
 
 **Score** — qualidade do sprint calculada ao fechar: começa em 100, desconta
 por desvios críticos (−10) e importantes (−5) encontrados pelo spec-verifier
 e tdd-reviewer.
 
+**Cost** — custo real em dólar extraído do `/usage` do Claude Code, exibido
+no dashboard em tempo real.
+
+**YOLO Mode** — modo autônomo onde você aprova o PRD e a pipeline inteira
+roda sozinha: contract → spec-dev → spec-verifier → tdd-reviewer → próximo sprint.
+Interrompido automaticamente em desvios críticos ou bloqueios.
+
 ## Estrutura
 
 ```
 .claude/
 ├── agents/
-│   ├── spec-writer.md      # /idea → PRD-Lite + sprints + prompt de execução
+│   ├── spec-writer.md      # /idea → PRD-Lite + sprints + diagrama Mermaid
 │   ├── spec-verifier.md    # /verify → aderência do código à spec
 │   ├── tdd-reviewer.md     # /review → cobertura de testes por criticidade
-│   ├── contract-writer.md  # /contract → acordo executor ↔ QA por sprint
+│   ├── contract-writer.md  # /contract → acordo spec-dev ↔ QA por sprint
+│   ├── spec-dev.md         # executor cirúrgico orientado ao contrato
 │   └── context-writer.md   # memória persistente entre sessões
 ├── commands/
 │   ├── ideia.md            # /idea "sua ideia"
 │   ├── verify.md           # /verify "feature" [--sprint N]
 │   ├── review.md           # /review "feature" [--before]
 │   ├── contract.md         # /contract --sprint N
-│   └── sprint.md           # /sprint [start N | done N | status N | context]
+│   ├── sprint.md           # /sprint [start N | done N | status N | context]
+│   ├── yolo.md             # /yolo — modo autônomo
+│   └── audit-repo.md       # /audit-repo — valida integridade do repositório
 ├── prds/                   # PRDs gerados pelo spec-writer
 ├── prompts/                # prompts de execução gerados pelos agentes
 ├── tdd/                    # relatórios de cobertura do tdd-reviewer
@@ -63,12 +76,13 @@ e tdd-reviewer.
     ├── sprints.md          # índice geral de todos os sprints
     ├── current.md          # contexto atual — lido no início de cada sessão
     ├── sprint-N.md         # estado detalhado de cada sprint
-    └── sprint-N-contract.md # contrato de cada sprint
+    ├── sprint-N-contract.md # contrato de cada sprint
+    └── activity.log        # feed de eventos em tempo real
 sdd.py                      # dashboard de terminal em tempo real
 install.sh                  # instalador
 ```
 
-## Pipeline completa
+## Pipeline manual
 
 ```
 /idea "sua ideia"
@@ -78,66 +92,86 @@ install.sh                  # instalador
     → context-writer inicializa sprint log
 
 /contract --sprint 1
-    → contract-writer lê o PRD e o batch correspondente
-    → Gera acordo: [EXECUTOR] compromete + [QA] compromete
-    → Status: AGREED
-    → context-writer atualiza: contract = AGREED
+    → contract-writer lê PRD + batch
+    → Gera acordo: [spec-dev] compromete + [QA] compromete
+    → context-writer: contract = AGREED
 
 /sprint start 1
-    → context-writer atualiza: build = in_progress
+    → context-writer: build = in_progress
 
-→ Executor implementa o Sprint #1
+→ spec-dev implementa o Sprint #1
+    → Declara entendimento, aguarda validação
+    → Implementa cirurgicamente — nada além do contrato
+    → Registra progresso no activity.log
 
 /sprint done 1
-    → context-writer atualiza: build = done
+    → context-writer: build = done
 
 /verify "feature" --sprint 1
     → spec-verifier confronta código com PRD-Lite
     → Relatório de aderência salvo em .claude/verify/
-    → Prompt de correção gerado se houver desvios
-    → context-writer atualiza: build = verified | failed
+    → context-writer: build = verified | failed
 
 /review "feature" --sprint 1
     → tdd-reviewer audita cobertura por criticidade
     → Relatório salvo em .claude/tdd/
-    → Prompt de fechamento gerado se houver lacunas
-    → context-writer atualiza: qa = passed | failed, calcula score
+    → context-writer: qa = passed | failed, calcula score
 
 /sprint
-    → exibe tabela de todos os sprints com status atual
+    → exibe tabela de todos os sprints
 
 → /contract --sprint 2 → próximo sprint...
 ```
 
-## Dashboard de terminal
+## Modo autônomo (YOLO)
 
-O `sdd.py` monitora o estado dos sprints em tempo real lendo `.claude/context/`:
+Após aprovar o PRD, a pipeline roda sozinha até a entrega:
 
 ```
-╭─────────────────────────────────────────────────────────────────╮
-│ sdd  —  Spec-Driven Development                                 │
-│ feature: CSV Tools   prd: .claude/prds/2026-05-18-csv.md        │
-│                                                                 │
-│ ╭──────────────────── Sprints ──────────────────────────────╮   │
-│ │  #   Goal                Contract    Build       QA       │   │
-│ │ ─────────────────────────────────────────────────────     │   │
-│ │  1   Parser CSV→Table    ✓ AGREED    ✓ verified  ✓ passed │   │
-│ │  2   Table→CSV export    ✓ AGREED    … running   pending  │   │
-│ │  3   CSV diff viewer       pending     pending   pending  │   │
-│ ╰───────────────────────────────────────────────────────────╯   │
-│ ╭──────────────────── Activity ─────────────────────────────╮   │
-│ │ Próximo passo: aguardar /sprint done 2                    │   │
-│ │ ↳ Executor implementando exportação...                    │   │
-│ ╰───────────────────────────────────────────────────────────╯   │
-│   sprint 2 / 3   score 95   elapsed 4m 12s                      │
-╰─────────────────────────────────────────────────────────────────╯
+/yolo
+    → contract-writer gera contratos automaticamente
+    → spec-dev implementa cada sprint
+    → spec-verifier valida aderência
+    → tdd-reviewer audita testes
+    → context-writer atualiza estado e score
+    → repete para o próximo sprint
+
+Interrompido automaticamente em:
+    → desvios 🔴 no spec-verifier
+    → bloqueios reportados pelo spec-dev
+    → lacunas 🔴 no tdd-reviewer
+
+/yolo --stop   → interrompe manualmente
+```
+
+## Dashboard de terminal
+
+O `sdd.py` monitora o estado em tempo real lendo `.claude/context/`:
+
+```
+╭──────────────────────────────────────────────────────────────╮
+│ sdd  —  Spec-Driven Development                              │
+│ feature: CSV Tools   prd: .claude/prds/2026-05-19-csv.md     │
+│                                                              │
+│ ╭──────────────────── Sprints ──────────────────────────╮    │
+│ │  #   Goal              Contract    Build      QA       │    │
+│ │  1   Parser CSV→Table  ✓ AGREED   ✓ verified ✓ passed  │    │
+│ │  2   Table→CSV export  ✓ AGREED   ⠋ running  —         │    │
+│ │  3   CSV diff viewer   —           —          —         │    │
+│ ╰───────────────────────────────────────────────────────╯    │
+│ ╭──────────────────── Activity ─────────────────────────╮    │
+│ │ 20:00 ▶ [EXEC] Iniciando Sprint #2                    │    │
+│ │ 21:00 · [EXEC] csv-export.ts: em progresso            │    │
+│ ╰───────────────────────────────────────────────────────╯    │
+│   sprint 2 / 3   score 95   cost $3.58   elapsed 4m 12s      │
+╰──────────────────────────────────────────────────────────────╯
 ```
 
 ```bash
-# Execute sempre da raiz do projeto (onde está .claude/context/)
-python3 sdd.py            # live — atualiza a cada 2s (padrão)
+python3 sdd.py            # live — atualiza a cada 1.5s (padrão)
 python3 sdd.py status     # snapshot estático
 python3 sdd.py sprint 2   # detalhes do sprint #2
+python3 sdd.py log        # activity log completo
 python3 sdd.py context    # contexto para nova sessão
 ```
 
@@ -151,23 +185,40 @@ exatamente onde parou — sem depender da memória da conversa anterior.
 python3 sdd.py context    # exibe o contexto atual
 ```
 
+## spec-dev — o executor cirúrgico
+
+O `spec-dev` segue quatro regras absolutas ao implementar:
+
+1. **Pense antes de codificar** — declara entendimento e suposições antes de começar
+2. **Simplicidade primeiro** — código mínimo que resolve o problema, nada especulativo
+3. **Alterações cirúrgicas** — toca apenas o que está no contrato, limpa apenas sua própria bagunça
+4. **Execução orientada por objetivos** — verifica cada item objetivamente antes de declarar pronto
+
+Nunca implementa além do escopo do contrato. Nunca declara vitória prematura.
+
 ## Instalação
 
-```bash
 # Instalar na raiz do projeto atual
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/helgg/sdd-agent/master/install.sh | bash
+```
 
 # Ou em um diretório específico
-curl -fsSL https://raw.githubusercontent.com/helgg/sdd-agent/master/install.sh | bash -s ~/meu-projeto
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/helgg/sdd-agent/master/install.sh | bash -s ~/meu-projeto
+```
 # Ou baixar e inspecionar antes
+```bash
+
 curl -fsSL https://raw.githubusercontent.com/helgg/sdd-agent/master/install.sh -o install.sh
 bash install.sh
 ```
 
 **Dependências:**
-- Python 3.12+
-- `rich` (instalado automaticamente pelo installer)
+- Python 3.8+
+- `rich` — instalado automaticamente pelo installer
 - Qualquer executor com suporte a markdown e sistema de arquivos
 
 ## Adaptação

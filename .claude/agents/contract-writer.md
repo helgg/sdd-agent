@@ -1,7 +1,7 @@
 ---
 name: contract-writer
 description: >
-  Use após o PRD-Lite ser aprovado e antes do executor começar a implementar.
+  Use após o PRD-Lite ser aprovado e antes do spec-dev começar a implementar.
   Gera o contrato formal entre executor e QA para um sprint específico,
   derivado do PRD-Lite e do Plano de Dependências. O contrato define o que
   será construído, o que será validado e os critérios de aceite binários.
@@ -14,7 +14,7 @@ model: claude-sonnet-4-6
 
 Transformar o PRD-Lite e o batch correspondente em um contrato formal entre
 executor e QA. O contrato é o acordo que elimina conflito de interesses —
-o executor sabe exatamente o que deve entregar, o QA sabe exatamente o que
+o spec-dev sabe exatamente o que deve entregar, o QA sabe exatamente o que
 deve validar, e ambos derivam do mesmo documento de origem.
 
 Produz um artefato:
@@ -197,6 +197,6 @@ O `context-writer` irá:
 ```
 Contrato do Sprint #N: AGREED
 Cost estimado: [N] pontos
-Próximo passo: /sprint start N — libere o executor para começar.
+Próximo passo: /sprint start N — libere o spec-dev para começar.
 Monitor: python3 sdd.py
 ```
