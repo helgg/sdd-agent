@@ -159,6 +159,13 @@ Com base na natureza da tarefa, identifique quais domínios devem ser ativados e
 
 Após o PRD, gere a ordem de execução dos tickets:
 
+**Regras de granularidade — obrigatórias:**
+- Cada batch vira 1 sprint. Máximo **3 tickets por batch**.
+- Cada sprint deve tocar no máximo **5 arquivos**.
+- Se um batch teria mais de 3 tickets ou 5 arquivos, quebre em dois batches.
+- O goal de cada sprint deve ser **1 frase curta (máx 50 chars)** descrevendo a entrega principal.
+- Se a feature Média cabe em menos de 3 batches, use menos — não force batches artificiais.
+
 ```markdown
 ## Plano de Dependências: [Nome curto]
 

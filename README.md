@@ -185,17 +185,6 @@ exatamente onde parou — sem depender da memória da conversa anterior.
 python3 sdd.py context    # exibe o contexto atual
 ```
 
-## spec-dev — o executor cirúrgico
-
-O `spec-dev` segue quatro regras absolutas ao implementar:
-
-1. **Pense antes de codificar** — declara entendimento e suposições antes de começar
-2. **Simplicidade primeiro** — código mínimo que resolve o problema, nada especulativo
-3. **Alterações cirúrgicas** — toca apenas o que está no contrato, limpa apenas sua própria bagunça
-4. **Execução orientada por objetivos** — verifica cada item objetivamente antes de declarar pronto
-
-Nunca implementa além do escopo do contrato. Nunca declara vitória prematura.
-
 ## Instalação
 
 # Instalar na raiz do projeto atual

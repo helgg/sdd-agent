@@ -43,7 +43,30 @@ Se o PRD não existir, encerre e informe — não é possível gerar contrato se
 - Identifique o batch correspondente ao sprint informado no Plano de Dependências
 - Leia o sprint log em `.claude/context/sprints.md` para confirmar que o sprint existe
 
-### 2. Lado do Executor
+### 2. Validação de Scope — gate obrigatório antes de gerar o contrato
+
+Antes de gerar qualquer artefato, verifique:
+
+| Critério | Limite | Ação se exceder |
+|---|---|---|
+| Entregas no escopo do batch | máx 3 itens | Alerte o usuário, sugira dividir em dois sprints e encerre |
+| Arquivos tocados | máx 5 arquivos | Alerte o usuário, sugira dividir em dois sprints e encerre |
+
+Se qualquer limite for excedido, pare aqui:
+```
+⚠️  Sprint #N com escopo excessivo detectado.
+Itens de escopo: [N] (máx 3) / Arquivos: [N] (máx 5)
+
+Sprints muito amplos causam desvios de implementação e dificultam verificação.
+Sugestão: divida este sprint em dois antes de gerar o contrato.
+
+Opção A — continue assim mesmo (risco de desvios)
+Opção B — revise o Plano de Dependências e chame /contract novamente
+```
+
+Só continue se o usuário explicitamente pedir a Opção A.
+
+### 3. Lado do Executor
 Derive do batch e do PRD:
 - O que será implementado (escopo fechado do batch)
 - Quais arquivos serão criados ou modificados

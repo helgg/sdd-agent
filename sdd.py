@@ -206,7 +206,7 @@ def build_sprints_table(sprints: list) -> Table:
         padding=(0, 1),
     )
     table.add_column("#",        style="bold cyan", width=3,  no_wrap=True)
-    table.add_column("Goal",     style="white",     ratio=3)
+    table.add_column("Goal",     style="white",     ratio=3, no_wrap=True, overflow="ellipsis")
     table.add_column("Contract", width=14, no_wrap=True)
     table.add_column("Build",    width=14, no_wrap=True)
     table.add_column("QA",       width=14, no_wrap=True)
