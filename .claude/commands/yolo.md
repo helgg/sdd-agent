@@ -1,25 +1,12 @@
 ---
-description: Modo autônomo — você aprova o PRD e a pipeline completa roda sozinha até a entrega
+description: Modo autônomo — encadeia agentes por todas as tasks pendentes até a entrega
 allowed-tools: Read, Write, Glob, Grep, Bash, Task
 ---
 
-## Modo YOLO — Pipeline Autônoma
+## Modo YOLO — Pipeline Autônoma por Tasks
 
-Você aprovou o PRD. A partir daqui, os agentes se encadeiam sozinhos até
-a entrega completa de cada sprint.
-
-**O que acontece:**
-1. `contract-writer` gera o contrato do sprint atual
-2. `spec-dev` implementa seguindo o contrato
-3. `spec-verifier` valida aderência à spec
-4. `tdd-reviewer` audita cobertura de testes
-5. `context-writer` registra o estado e calcula o score
-6. Repete para o próximo sprint — até todos estarem concluídos
-
-**Você só será interrompido se:**
-- Um desvio 🔴 for encontrado pelo spec-verifier
-- Um bloqueio for reportado pelo spec-dev
-- O tdd-reviewer bloquear o merge por lacunas críticas
+A partir do PRD aprovado, os agentes se encadeiam sozinhos task por task
+até todas concluírem.
 
 <contexto>
 $ARGUMENTS
@@ -27,67 +14,84 @@ $ARGUMENTS
 
 ---
 
-## Instruções para execução autônoma
+## Comportamento
 
-Use o agente context-writer para identificar o sprint atual em
-`.claude/context/sprints.md`, depois encadeie os agentes na seguinte ordem
-para cada sprint com status `contract: pending` ou `build: pending`:
+Para cada task em ordem (respeitando `depends_on`):
 
-### Para cada sprint pendente:
+1. **contract-writer** gera o contrato da task → AGREED
+2. **spec-dev** implementa seguindo o contrato
+3. **spec-verifier** valida aderência
+4. **tdd-reviewer** audita cobertura + captura cost USD
+5. **context-writer** registra estado e score
 
-**Etapa 1 — Contrato**
-Use o agente contract-writer:
-- Leia o PRD e o batch correspondente
-- Gere o contrato automaticamente (sem aguardar aprovação humana no modo YOLO)
-- Marque como AGREED e registre no context-writer
+### Tratamento de falhas (sem interrupção)
 
-**Etapa 2 — Implementação**
-Use o agente spec-dev:
-- Leia o contrato gerado
-- Apresente o entendimento em 3 bullets (sem aguardar aprovação no modo YOLO)
-- Implemente seguindo as regras absolutas
-- Registre progresso no activity.log
-- Se encontrar bloqueio: PARE e interrompa o modo YOLO, informe o usuário
+Se `spec-verifier` retornar 🚫 (desvios críticos):
+- O spec-dev é acionado para corrigir usando o prompt gerado
+- A task é reverificada
+- Contador de tentativas incrementa
 
-**Etapa 3 — Verificação de aderência**
-Use o agente spec-verifier:
-- Verifique aderência ao PRD
-- Se houver desvios 🔴: PARE e interrompa o modo YOLO, informe o usuário
-- Se houver apenas desvios 🟡 ou 🟠: registre e continue
-- Acione context-writer com build_update
+Se `tdd-reviewer` retornar 🚫 (lacunas críticas):
+- O spec-dev é acionado para escrever os testes
+- A task volta para o review
+- Contador de tentativas incrementa
 
-**Etapa 4 — Auditoria de testes**
-Use o agente tdd-reviewer:
-- Audite cobertura por criticidade
-- Se houver lacunas 🔴: PARE e interrompa o modo YOLO, informe o usuário
-- Acione context-writer com qa_update
-
-**Etapa 5 — Próximo sprint**
-- Se houver sprint seguinte: repita a partir da Etapa 1
-- Se todos os sprints estiverem concluídos: informe o usuário com resumo final
+**Limite de 3 tentativas por task.** Após a 3ª tentativa falhando:
+- Task vira `build: blocked`
+- YOLO **pula** para a próxima task
+- Bloqueio registrado no relatório final
 
 ---
 
-## Resumo Final (quando todos os sprints concluírem)
+## Workflow do YOLO
+
+1. Use o context-writer para identificar a próxima task elegível:
+   - `contract: pending` ou `build: pending` ou `build: failed`
+   - `depends_on` com todas `qa: passed`
+
+2. Se houver task elegível, execute o ciclo completo:
+   - contract-writer → spec-dev → spec-verifier → tdd-reviewer
+   - Cada agente registra no activity.log
+   - Em caso de falha 🚫: spec-dev corrige → reverifica (até 3 tentativas)
+
+3. Após task fechar (passed ou blocked após 3 tentativas):
+   - Recalcule agregados
+   - Identifique próxima task
+   - Repita
+
+4. Quando nenhuma task elegível restar:
+   - Emita o resumo final
+
+---
+
+## Resumo Final
 
 ```
-╔══════════════════════════════════════╗
-║  Pipeline YOLO concluída             ║
-╠══════════════════════════════════════╣
-║  Sprints:  N concluídos              ║
-║  Score médio: XX/100                 ║
-║  Custo total: ver `python3 sdd.py`   ║
-╚══════════════════════════════════════╝
+╔══════════════════════════════════════════════╗
+║  Pipeline YOLO concluída                     ║
+╠══════════════════════════════════════════════╣
+║  Tasks concluídas: N/Total                   ║
+║  Tasks bloqueadas: N                         ║
+║  Score médio: XX/100                         ║
+║  Cost total: $X.XX                           ║
+║  Tempo total: Xh Xm                          ║
+╚══════════════════════════════════════════════╝
 
-Próximo passo: revise os relatórios em .claude/verify/ e .claude/tdd/
+Tasks bloqueadas (revisar manualmente):
+- Task X.Y — [razão] — 3 tentativas
+- Task X.Z — [razão] — 3 tentativas
+
+Relatórios em:
+- .claude/verify/
+- .claude/tdd/
 ```
 
 ---
 
-## Interrupção de emergência
+## Interrupção manual
 
-Se $ARGUMENTS contiver `--stop`, encerre o modo YOLO imediatamente e
-reporte o estado atual de cada sprint.
+`/yolo --stop` — encerra o ciclo atual após concluir a task em andamento
+e reporta o estado.
 
-Se $ARGUMENTS estiver vazio, verifique `.claude/context/sprints.md` e
-inicie pelo primeiro sprint com `contract: pending`.
+Se $ARGUMENTS estiver vazio, inicie pela primeira task elegível em
+`.claude/context/sprints.md`.

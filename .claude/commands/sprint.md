@@ -1,9 +1,9 @@
 ---
-description: Exibe o estado atual de todos os sprints e gerencia transições de status (start, done)
+description: Exibe estado dos sprints e tasks, gerencia transições de status
 allowed-tools: Read, Write, Glob, Grep, Task
 ---
 
-Use o agente context-writer para processar o seguinte comando de sprint:
+Use o agente context-writer para processar o seguinte comando:
 
 <comando>
 $ARGUMENTS
@@ -11,10 +11,11 @@ $ARGUMENTS
 
 ## Comandos disponíveis
 
-- `/sprint` — exibe tabela de todos os sprints e o próximo passo recomendado
-- `/sprint start N` — marca o Sprint #N como in_progress (executor iniciou)
-- `/sprint done N` — marca o Sprint #N como done (executor concluiu, pronto para /verify)
-- `/sprint status N` — exibe detalhes completos do Sprint #N
-- `/sprint context` — exibe o current.md para reconstruir contexto em nova sessão
+- `/sprint` — exibe tabela geral de sprints (com progresso por tasks)
+- `/sprint N` — detalhes do Sprint #N e suas tasks
+- `/sprint start N.M` — marca Task #N.M como `build: in_progress`
+- `/sprint done N.M` — marca Task #N.M como `build: done` (pronta para /verify)
+- `/sprint block N.M "razão"` — marca task como `build: blocked`
+- `/sprint context` — exibe `current.md` para reconstruir contexto em nova sessão
 
-Se $ARGUMENTS estiver vazio, execute `/sprint` e exiba o estado geral.
+Se $ARGUMENTS estiver vazio, execute `/sprint` e exiba estado geral.

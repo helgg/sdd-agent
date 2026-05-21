@@ -10,7 +10,6 @@ REPO="helgg/sdd-agent"
 BRANCH="master"
 BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
-# Agentes
 AGENTS=(
   ".claude/agents/spec-writer.md"
   ".claude/agents/spec-verifier.md"
@@ -20,7 +19,6 @@ AGENTS=(
   ".claude/agents/spec-dev.md"
 )
 
-# Commands
 COMMANDS=(
   ".claude/commands/ideia.md"
   ".claude/commands/verify.md"
@@ -30,7 +28,6 @@ COMMANDS=(
   ".claude/commands/yolo.md"
 )
 
-# CLI
 CLI=(
   "sdd.py"
 )
@@ -70,13 +67,12 @@ check_dependencies() {
 
 is_project_root() {
   local dir="$1"
-  # Verifica marcadores comuns de raiz de projeto
   git -C "$dir" rev-parse --git-dir &>/dev/null && return 0
   [[ -f "$dir/package.json" ]]   && return 0
   [[ -f "$dir/pyproject.toml" ]] && return 0
   [[ -f "$dir/go.mod" ]]         && return 0
   [[ -f "$dir/Cargo.toml" ]]     && return 0
-  [[ -f "$dir/pom.xml" ]]        && return 0
+  [[ -f "$dir/Gemfile" ]]        && return 0
   return 1
 }
 
@@ -90,12 +86,9 @@ confirm_target() {
 
   echo -e "Instalando em: ${YELLOW}$(realpath "$target_dir")${RESET}"
 
-  if ! git -C "$target_dir" rev-parse --git-dir &>/dev/null && \
-     [[ ! -f "$target_dir/package.json" ]] && \
-     [[ ! -f "$target_dir/pyproject.toml" ]] && \
-     [[ ! -f "$target_dir/go.mod" ]] && \
-     [[ ! -f "$target_dir/Cargo.toml" ]]; then
-    warn "Nenhum arquivo de projeto detectado. Tem certeza que este é o diretório correto?"
+  if ! is_project_root "$target_dir"; then
+    warn "Nenhum projeto detectado neste diretório."
+    local confirm
     read -r -p "Continuar mesmo assim? [s/N] " confirm </dev/tty
     [[ "${confirm,,}" == "s" ]] || { echo "Instalação cancelada."; exit 0; }
   fi
@@ -136,12 +129,7 @@ create_output_dirs() {
     fi
   done
 
-  info "Diretórios de saída criados"
-}
-
-make_executable() {
-  local target_dir="$1"
-  chmod +x "$target_dir/sdd.py" 2>/dev/null || true
+  info "Diretórios criados"
 }
 
 # ─────────────────────────────────────────────
@@ -172,32 +160,32 @@ main() {
   for file in "${CLI[@]}"; do
     download_file "$file" "$target_dir/$file"
   done
-  make_executable "$target_dir"
+  chmod +x "$target_dir/sdd.py" 2>/dev/null || true
 
-  heading "Criando diretórios de saída..."
+  heading "Criando diretórios..."
   create_output_dirs "$target_dir"
 
   heading "Instalação concluída!"
   echo ""
-  echo "  Pipeline manual:"
+  echo "  Pipeline manual (sprint a sprint, task a task):"
   echo ""
-  echo "  1. /idea \"sua ideia\"      → spec-writer gera PRD + sprints"
-  echo "  2. /contract --sprint 1   → contrato executor ↔ QA"
-  echo "  3. /sprint start 1        → executor começa"
-  echo "  4. /sprint done 1         → executor conclui"
-  echo "  5. /verify \"feature\"      → spec-verifier valida aderência"
-  echo "  6. /review \"feature\"      → tdd-reviewer audita testes"
-  echo "  7. /sprint                → visão geral de todos os sprints"
+  echo "  1. ${BOLD}/idea \"sua ideia\"${RESET}        spec-writer → PRD + sprints + tasks"
+  echo "  2. ${BOLD}/contract --task 1.1${RESET}      contrato spec-dev ↔ QA da task"
+  echo "  3. ${BOLD}/sprint start 1.1${RESET}         executor inicia"
+  echo "  4. ${BOLD}/sprint done 1.1${RESET}          executor conclui"
+  echo "  5. ${BOLD}/verify --task 1.1${RESET}        valida aderência"
+  echo "  6. ${BOLD}/review --task 1.1${RESET}        audita testes + captura cost USD"
+  echo "  7. próxima task..."
   echo ""
-  echo "  Modo autônomo (YOLO):"
-  echo "  ${BOLD}/yolo${RESET}                     → aprove o PRD e a pipeline roda sozinha"
-  echo "  ${BOLD}/yolo --stop${RESET}              → interrompe o modo autônomo"
+  echo "  Modo autônomo:"
+  echo "  ${BOLD}/yolo${RESET}                        pipeline completa task por task"
+  echo "  ${BOLD}/yolo --stop${RESET}                 interrompe o ciclo atual"
   echo ""
-  echo "  Monitor em tempo real:"
-  echo "  ${BOLD}python3 sdd.py${RESET}            → dashboard live com activity feed"
-  echo "  ${BOLD}python3 sdd.py status${RESET}     → snapshot estático"
-  echo "  ${BOLD}python3 sdd.py log${RESET}        → activity log completo"
-  echo "  ${BOLD}python3 sdd.py context${RESET}    → contexto para nova sessão"
+  echo "  Dashboard:"
+  echo "  ${BOLD}python3 sdd.py${RESET}               live com sprints e tasks expandidas"
+  echo "  ${BOLD}python3 sdd.py status${RESET}        snapshot estático"
+  echo "  ${BOLD}python3 sdd.py task 1.3${RESET}      detalhes de uma task específica"
+  echo "  ${BOLD}python3 sdd.py log${RESET}           activity log completo"
   echo ""
   echo "  Documentação: https://github.com/${REPO}#readme"
 }

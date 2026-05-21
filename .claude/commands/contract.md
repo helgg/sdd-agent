@@ -1,9 +1,9 @@
 ---
-description: Gera o contrato formal entre executor e QA para um sprint antes da implementação começar
+description: Gera o contrato formal entre spec-dev e QA para uma TASK específica
 allowed-tools: Read, Write, Glob, Grep, Task
 ---
 
-Use o agente contract-writer para gerar o contrato do seguinte sprint:
+Use o agente contract-writer para gerar o contrato da seguinte task:
 
 <contexto>
 $ARGUMENTS
@@ -11,12 +11,17 @@ $ARGUMENTS
 
 ## Uso
 
-- `/contract --sprint N` — gera o contrato para o Sprint #N
-- `/contract --sprint N --prd YYYY-MM-DD-nome` — especifica o PRD de referência
+- `/contract --task N.M` — gera contrato da Task #N.M
+- `/contract --task N.M --prd YYYY-MM-DD-nome` — especifica o PRD
 
 Se $ARGUMENTS estiver vazio, pergunte:
-- Qual o número do sprint?
-- Há um PRD-Lite em `.claude/prds/`? Se sim, qual?
+- Qual o ID da task (formato N.M)?
+- Há PRD em `.claude/prds/`? Se sim, qual?
 
-Execute sempre após o PRD ser aprovado e antes do executor iniciar o sprint.
-Após o contrato ser gerado e confirmado, execute `/sprint start N`.
+Pré-condições:
+- A task deve existir em `.claude/context/task-N-M.md` com `contract: pending`
+- As dependências em `depends_on` devem ter `qa: passed`
+
+Após o contrato AGREED, próximo passo:
+- /sprint start N.M (manual)
+- ou aguardar continuação automática se em /yolo
